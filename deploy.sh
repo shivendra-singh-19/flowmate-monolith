@@ -1,0 +1,1 @@
+./build.sh && docker rm -f monolith && ~/scripts/monolith.sh && docker logs --tail 100 -f monolith
