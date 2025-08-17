@@ -69,4 +69,8 @@ export class SchedulerApi {
   static async deleteRecurringTask(object, options) {}
 
   static async deleteNonRecurringTask(object, options) {}
+
+  static async fetchNextRun(object, options) {}
+
+  static async pauseRecurringTask(object, options) {}
 }
