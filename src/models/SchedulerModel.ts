@@ -5,11 +5,6 @@ export interface ISchedulerTask {
   _id?: Types.ObjectId;
   name: string;
   pattern?: string;
-  schedules?: {
-    scheduleTime: Date;
-    jobId?: string;
-  }[];
-  isRecurring: boolean;
   requestBody: {
     url: string;
     headers: any;
@@ -19,18 +14,12 @@ export interface ISchedulerTask {
   };
   jobId?: string;
   isPaused: boolean;
+  nextRunId: Types.ObjectId;
 }
 
 export const SchedulerTaskSchema = new Schema<ISchedulerTask>({
   name: { type: String, unique: true },
   pattern: { type: String },
-  schedules: [
-    {
-      scheduleTime: { type: Date },
-      jobId: { type: String },
-    },
-  ],
-  isRecurring: { type: Boolean, default: true },
   requestBody: {
     url: { type: String, required: true },
     headers: { type: Schema.Types.Mixed },
@@ -43,6 +32,7 @@ export const SchedulerTaskSchema = new Schema<ISchedulerTask>({
   },
   jobId: { type: String },
   isPaused: { type: Boolean, default: false },
+  nextRunId: { type: Schema.Types.ObjectId },
 });
 
 SchedulerTaskSchema.index({ name: 1 });

@@ -14,15 +14,7 @@ export class SchedulerApi {
       object,
       Joi.object({
         name: Joi.string().required(),
-        isRecurring: Joi.boolean().default(false),
-        pattern: Joi.when('isRecurring', {
-          is: true,
-          then: Joi.string().required(),
-        }),
-        schedules: Joi.when('isRecurring', {
-          is: false,
-          then: Joi.array().items(Joi.string()).min(1),
-        }),
+        pattern: Joi.string().required(),
         requestBody: Joi.object({
           url: Joi.string().uri().required(),
           method: Joi.string()
@@ -32,26 +24,16 @@ export class SchedulerApi {
           params: Joi.object().pattern(Joi.string(), Joi.any()),
           data: Joi.any(),
           timeout: Joi.number().integer().min(0),
-          withCredentials: Joi.boolean(),
-          responseType: Joi.string().valid(
-            'arraybuffer',
-            'blob',
-            'document',
-            'json',
-            'text',
-            'stream'
-          ),
         }).unknown(true),
       })
     );
 
-    const { name, isRecurring, pattern, schedules = [], requestBody } = object;
+    const { name, isRecurring, pattern, requestBody } = object;
 
     const response = await SchedulerUtils.addJobToQueue({
       name,
       isRecurring,
       pattern,
-      schedules,
       requestBody,
     });
 

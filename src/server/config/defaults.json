@@ -1,0 +1,16 @@
+{
+  "server": {
+    "port": 4000,
+    "host": "localhost"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 27017,
+    "schema": "flowmate",
+    "debug": true
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379
+  }
+}

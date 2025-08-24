@@ -21,8 +21,11 @@ export const api = {
         const result = await handler(object, options);
         res.json(result);
       } catch (error) {
-        console.error(error.details);
-        res.sendStatus(500);
+        res.status(500).json({
+          success: false,
+          message: 'Internal Server Error',
+          error: error.details, // you can include specific details here
+        });
       }
     };
   },

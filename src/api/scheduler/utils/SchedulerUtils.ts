@@ -1,11 +1,18 @@
 import _ from 'lodash';
+import cron from 'cron-parser';
+import mongoose from 'mongoose';
+import { Job, JobsOptions } from 'bullmq';
+
 import {
   ISchedulerTask,
   SchedulerTaskModel,
 } from '../../../models/SchedulerModel';
 import { QueueInstance } from '../../../QueueInstance';
-import { Job, JobsOptions } from 'bullmq';
-import mongoose from 'mongoose';
+import {
+  ITaskExecution,
+  TASK_EXECUTION_STATUS,
+  TaskExecutionModel,
+} from '../../../models/TaskExecutionModel';
 
 interface BulkJobs {
   name: string;
@@ -26,7 +33,6 @@ export class SchedulerUtils {
     name: string;
     isRecurring: boolean;
     pattern: string;
-    schedules: string[];
     requestBody: any;
   }) {
     const { task } = await this.insertTaskEntry(payload);
@@ -45,36 +51,35 @@ export class SchedulerUtils {
   static async insertTaskEntry(payload: {
     name: string;
     pattern: string;
-    schedules: string[];
     requestBody: any;
   }) {
-    const { name, pattern, schedules = [], requestBody } = payload;
-    const isRecurring = schedules.length == 0 ? true : false;
-    const taskDoc: ISchedulerTask = {
+    const { name, pattern, requestBody } = payload;
+
+    const nextRunTime = this.getNextCronRun(pattern);
+
+    const taskDoc: Partial<ISchedulerTask> = {
       _id: new mongoose.Types.ObjectId(),
       name,
-      pattern: isRecurring ? pattern : undefined,
-      schedules: !isRecurring
-        ? _.map(schedules, (schedule) => ({
-            scheduleTime: new Date(schedule),
-          })).sort((a, b) =>
-            a.scheduleTime.toString().localeCompare(b.scheduleTime.toString())
-          )
-        : undefined,
+      pattern: pattern,
       requestBody,
       isPaused: false,
-      isRecurring,
     };
 
-    const task = new SchedulerTaskModel(taskDoc);
+    const taskExecutionDoc: ITaskExecution = {
+      _id: new mongoose.Types.ObjectId(),
+      taskId: taskDoc._id,
+      status: TASK_EXECUTION_STATUS.PENDING,
+      scheduledAt: nextRunTime,
+    };
 
-    await task.save();
+    taskDoc.nextRunId = taskExecutionDoc._id;
 
-    if (isRecurring) {
-      await this.addOneRecurringJob(task);
-    } else {
-      await this.addMultipleDelayedJobs(task);
-    }
+    const [task, taskExecution] = await Promise.all([
+      new SchedulerTaskModel(taskDoc).save(),
+      new TaskExecutionModel(taskExecutionDoc).save(),
+    ]);
+
+    await this.addOneRecurringJob(task);
 
     return {
       task: taskDoc,
@@ -95,7 +100,7 @@ export class SchedulerUtils {
     const response = await queue.add(
       'scheduler',
       {
-        _id,
+        taskId: _id.toString(),
       },
       jobOptions
     );
@@ -114,59 +119,6 @@ export class SchedulerUtils {
     return response;
   }
 
-  static async addMultipleDelayedJobs(task: ISchedulerTask) {
-    const { schedules, name, _id } = task;
-    const bulkJobs: BulkJobs[] = [];
-    for (const { scheduleTime: schedule } of schedules) {
-      const delayInSeconds = (new Date(schedule).getTime() - Date.now()) / 1000;
-
-      const jobOption: JobsOptions = {
-        removeOnComplete: {
-          age: 24 * 60 * 60,
-        },
-        removeOnFail: {
-          age: 7 * 24 * 60 * 60,
-        },
-        jobId: `${name} | ${schedule} | ${Date.now()}`,
-        delay: delayInSeconds,
-      };
-
-      bulkJobs.push({
-        name,
-        data: {
-          _id: _id.toString(),
-        },
-        opts: jobOption,
-      });
-    }
-
-    const queue = QueueInstance.getInstance(SCHEDULER_QUEUE);
-    const response = await queue.addBulk(bulkJobs);
-
-    const updatedSchedules = [];
-
-    for (let i = 0; i < schedules.length; i++) {
-      const schedule = schedules[i];
-      const updatedResponse = {
-        ...schedule,
-        jobId: response[i].id,
-      };
-
-      updatedSchedules.push(updatedResponse);
-    }
-
-    await SchedulerTaskModel.updateOne(
-      { _id },
-      {
-        $set: {
-          schedules: updatedSchedules,
-        },
-      }
-    ).exec();
-
-    return;
-  }
-
   static fetchRecurringJobOptions(pattern: string, name: string) {
     return {
       removeOnComplete: {
@@ -180,5 +132,16 @@ export class SchedulerUtils {
       },
       jobId: `${name} | ${new Date()}`,
     };
+  }
+
+  /**
+   * Fetch next cron run time
+   * @param pattern
+   * @returns
+   */
+  static getNextCronRun(pattern: string) {
+    const expression = cron.parse(pattern);
+    const nextRunDate = expression.next().toDate();
+    return nextRunDate;
   }
 }

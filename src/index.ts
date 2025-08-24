@@ -5,24 +5,17 @@ import { Server } from 'socket.io';
 import http from 'http';
 import express, { NextFunction, Request, Response } from 'express';
 
-import { SkillsRouter } from './api/skills/routes';
 import { RedisConnect } from './setup/RedisConnect';
 import { MongoConnect } from './setup/MongoConnect';
-import { RequestRouter } from './api/request/routes';
-import { CustomerAccountsRouter } from './api/users/routes';
+
 import { ScheduledJobsRouter } from './api/scheduler/routes';
-import { startConsumers } from './amq';
+import config from './server/config';
 
 global.Promise = <any>Bluebird;
 
-const configFile = fs.readFileSync(
-  __dirname + '/../config/config.development.json',
-  'utf-8'
-);
-export const config = JSON.parse(configFile);
-
-const { server, database, redis } = config;
-const { port } = server;
+const database = config.get('database');
+const redis = config.get('redis');
+const server = config.get('server');
 
 export let redisClient;
 async function init() {
@@ -33,26 +26,8 @@ async function init() {
 
   redisClient = redisClient1;
 
-  await startConsumers();
-
   const app = express();
   const httpServer = http.createServer(app);
-
-  const io = new Server(httpServer, {
-    cors: {
-      origin: 'http://localhost:5173',
-    },
-  });
-
-  io.on('connection', (socket) => {
-    console.log(`Socket connected id: ${socket.id}`);
-    socket.on(
-      'message',
-      (message: { sender: string; receiver: string; message: string }) => {
-        io.emit('message', message);
-      }
-    );
-  });
 
   app.use(express.json());
 
@@ -61,12 +36,6 @@ async function init() {
   app.get('/health', (req: Request, res: Response) => {
     res.send('Running');
   });
-
-  app.use('/user', CustomerAccountsRouter);
-
-  app.use('/skill', SkillsRouter);
-
-  app.use('/request', RequestRouter);
 
   app.use('/job', ScheduledJobsRouter);
 
@@ -93,8 +62,8 @@ async function init() {
     }
   });
 
-  httpServer.listen(port, (): void => {
-    console.log(`Server Running at ${port}`);
+  httpServer.listen(server.port, (): void => {
+    console.log(`Server Running at ${server.port}`);
   });
 }
 
