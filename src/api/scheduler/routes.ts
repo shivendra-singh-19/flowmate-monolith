@@ -5,3 +5,5 @@ import { SchedulerApi } from './SchedulerApi';
 export const ScheduledJobsRouter = express.Router();
 
 ScheduledJobsRouter.post('/create', api.http(SchedulerApi.createNewCronTask));
+
+ScheduledJobsRouter.get('/', api.http(SchedulerApi.fetchAllTasks));

@@ -11,7 +11,7 @@ export class GeneralUtils {
    */
   static parseOffsetPageParams(query: any, MAX_PAGE_LIMIT = 30) {
     const limit = parseInt(query?.limit ?? MAX_PAGE_LIMIT);
-    const page = parseInt(query?.page);
+    const page = parseInt(query?.page ?? '1');
     const skip = (page - 1) * limit;
     return {
       limit,

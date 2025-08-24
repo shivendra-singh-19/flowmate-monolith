@@ -1,6 +1,12 @@
 import Joi from 'joi';
+import * as _ from 'lodash';
+import { FilterQuery } from 'mongoose';
 import { GeneralUtils } from '../../utils/GeneralUtils';
 import { SchedulerUtils } from './utils/SchedulerUtils';
+import {
+  ISchedulerTask,
+  SchedulerTaskModel,
+} from '../../models/SchedulerModel';
 
 export class SchedulerApi {
   /**
@@ -40,7 +46,44 @@ export class SchedulerApi {
     return response;
   }
 
-  static async fetchAllTasks(object, options) {}
+  /**
+   * Fetch all tasks paginated
+   * @param object
+   * @param options
+   * @returns
+   */
+  static async fetchAllTasks(object, options) {
+    const { query } = options;
+    const { q } = query;
+    const filterQuery: FilterQuery<ISchedulerTask> = {};
+
+    if (q && q.length > 0) {
+      filterQuery.name = { $regex: _.escapeRegExp(q) };
+    }
+
+    const { skip, limit, page } = GeneralUtils.parseOffsetPageParams(query, 50);
+
+    const [tasks, totalTasks] = await Promise.all([
+      SchedulerTaskModel.find(filterQuery)
+        .select({
+          name: 1,
+          pattern: 1,
+          url: '$requestBody.url',
+          isPaused: 1,
+        })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      SchedulerTaskModel.countDocuments(filterQuery),
+    ]);
+
+    return {
+      totalCount: totalTasks,
+      page,
+      data: tasks,
+    };
+  }
 
   static async fetchOneTask(object, options) {}
 
